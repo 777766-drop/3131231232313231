@@ -30,12 +30,24 @@ jobs:
           pip install --upgrade pip
           pip install Cython buildozer
 
+      # 使用 android-actions 提前安装 Android SDK 和 build-tools，并自动接受许可证
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34                  # 与 buildozer.spec 中的 android.api 保持一致
+          build-tools-version: 34.0.0     # 与 buildozer.spec 中的 android.build_tools_version 保持一致
+          ndk-version: 25.2.9519653       # 可选，如果不指定，buildozer 会自己下载 NDK
+          accept-licenses: true
+
+      # 设置环境变量 ANDROID_HOME，让 buildozer 能识别到预装的 SDK
+      - name: Set ANDROID_HOME
+        run: echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+
       - name: Build with Buildozer
         run: |
-          # 允许 buildozer 使用非组织的域名（避免交互式提示）
           export BUILDOZER_ALLOW_ORG_TEST_DOMAIN=1
-          # 自动接受所有 Android SDK 许可证，并开始编译
-          buildozer --accept-sdk-licenses -v android debug
+          # 现在 buildozer 会优先使用已存在的 SDK，不会再尝试下载
+          buildozer -v android debug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
