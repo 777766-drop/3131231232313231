@@ -21,3 +21,4 @@ jobs:
         with:
           name: ecust-run-apk
           path: bin/*.apk
+
