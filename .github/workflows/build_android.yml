@@ -1,56 +1,85 @@
-name: Build Kivy APK
+name: Build Android APK
 
 on:
   push:
+    branches: [ main, master ]
+  pull_request:
     branches: [ main ]
+  workflow_dispatch:  # 允许手动点击运行
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # 必须用Linux，Buildozer不支持Windows/Mac
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.8'
-
-      - name: Install system dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y \
-            git zip unzip openjdk-17-jdk python3-pip \
-            autoconf libtool pkg-config zlib1g-dev \
-            libncurses5-dev libncursesw5-dev \
-            libtinfo-dev cmake libffi-dev libssl-dev
-
-      - name: Install Python dependencies
-        run: |
-          pip install --upgrade pip
-          pip install Cython buildozer
-
-      # 使用 android-actions 提前安装 Android SDK 和 build-tools，并自动接受许可证
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          api-level: 34                  # 与 buildozer.spec 中的 android.api 保持一致
-          build-tools-version: 34.0.0     # 与 buildozer.spec 中的 android.build_tools_version 保持一致
-          ndk-version: 25.2.9519653       # 可选，如果不指定，buildozer 会自己下载 NDK
-          accept-licenses: true
-
-      # 设置环境变量 ANDROID_HOME，让 buildozer 能识别到预装的 SDK
-      - name: Set ANDROID_HOME
-        run: echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-
-      - name: Build with Buildozer
-        run: |
-          export BUILDOZER_ALLOW_ORG_TEST_DOMAIN=1
-          # 现在 buildozer 会优先使用已存在的 SDK，不会再尝试下载
-          buildozer -v android debug
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-apk
-          path: ./bin/*.apk
+    - uses: actions/checkout@v4
+    
+    # 缓存Buildozer下载的SDK/NDK（极大加速二次构建）
+    - name: Cache Buildozer dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.buildozer
+          ~/.android
+        key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          ${{ runner.os }}-buildozer-
+    
+    # 安装系统依赖
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          python3-pip \
+          build-essential \
+          git \
+          ffmpeg \
+          libsdl2-dev \
+          libsdl2-image-dev \
+          libsdl2-mixer-dev \
+          libsdl2-ttf-dev \
+          libportmidi-dev \
+          libswscale-dev \
+          libavformat-dev \
+          libavcodec-dev \
+          libfreetype6-dev \
+          libgl1-mesa-dev \
+          libgles2-mesa-dev \
+          libgstreamer1.0-dev \
+          libgstreamer-plugins-base1.0-dev \
+          zlib1g-dev \
+          libjpeg-dev \
+          libffi-dev \
+          libssl-dev \
+          automake \
+          autoconf \
+          libtool \
+          pkg-config
+    
+    # 安装Buildozer
+    - name: Install Buildozer
+      run: |
+        pip3 install --upgrade pip
+        pip3 install buildozer cython==0.29.33
+    
+    # 修复权限并开始构建
+    - name: Build APK
+      run: |
+        # 修复目录权限（GitHub Actions runner用户问题）
+        sudo chown -R $(whoami) ~/.local
+        sudo chown -R $(whoami) ~/.buildozer || true
+        
+        # 构建debug APK（首次可能20-30分钟，缓存后5分钟）
+        buildozer android debug
+        
+        # 重命名加上版本号
+        mv bin/*.apk bin/ecust-run-v4.4.apk || true
+    
+    # 上传构建产物
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: ecust-run-apk
+        path: bin/*.apk
+        if-no-files-found: error
+    
