@@ -1,49 +1,41 @@
-name: Build Android APK
+name: Build with Buildozer
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            python3-pip python3-dev build-essential git zip unzip \
-            openjdk-17-jdk libffi-dev libssl-dev libsdl2-dev \
-            libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-            libportmidi-dev libfreetype6-dev
-          pip3 install buildozer cython==0.29.33
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Pre-install Android SDK
-        run: |
-          # 关键：手动安装完整SDK（避免Buildozer下载不完整）
-          SDK_DIR=~/.buildozer/android/platform/android-sdk
-          mkdir -p $SDK_DIR/cmdline-tools
-          
-          cd $SDK_DIR/cmdline-tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q *.zip && mv cmdline-tools latest && rm *.zip
-          
-          # 同意协议并安装build-tools（包含aidl）
-          yes | $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --licenses
-          $SDK_DIR/cmdline-tools/latest/bin/sdkmanager "build-tools;33.0.0" "platforms;android-33"
-          
-          # 验证aidl存在
-          ls $SDK_DIR/build-tools/33.0.0/aidl
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
 
-      - name: Build APK
+      - name: Install system dependencies
         run: |
-          unset ANDROID_SDK_ROOT ANDROID_HOME
-          buildozer android debug
-          ls -la bin/
+          sudo apt update
+          sudo apt install -y \
+            git zip unzip openjdk-17-jdk python3-pip \
+            autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev \
+            libtinfo-dev cmake libffi-dev libssl-dev
 
-      - name: Upload APK
+      # 使用专门为 Buildozer 设计的 Action
+      - name: Build with Buildozer
+        uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
+        with:
+          workdir: .
+          buildozer_version: stable
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ecust-run-apk
-          path: bin/*.apk
+          name: app-apk
+          path: ${{ steps.buildozer.outputs.filename }}
