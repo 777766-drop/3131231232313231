@@ -1,4 +1,3 @@
-.github/workflows/build_android.yml
 name: Build Kivy APK
 
 on:
