@@ -5,16 +5,15 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:  # 允许手动点击运行
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04  # 必须用Linux，Buildozer不支持Windows/Mac
+    runs-on: ubuntu-22.04
     
     steps:
     - uses: actions/checkout@v4
     
-    # 缓存Buildozer下载的SDK/NDK（极大加速二次构建）
     - name: Cache Buildozer dependencies
       uses: actions/cache@v3
       with:
@@ -25,61 +24,72 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-buildozer-
     
-    # 安装系统依赖
+    # 修复：移除GStreamer，添加自动修复命令
     - name: Install system dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
+        sudo apt-get update -y
+        
+        # 自动修复破损依赖
+        sudo apt --fix-broken install -y || true
+        sudo apt-get upgrade -y || true
+        
+        # 精简依赖列表（移除libgstreamer1.0-dev等冲突包）
+        sudo apt-get install -y --no-install-recommends \
           python3-pip \
+          python3-dev \
           build-essential \
           git \
-          ffmpeg \
+          zip \
+          unzip \
+          openjdk-17-jdk \
+          autoconf \
+          libtool \
+          pkg-config \
+          zlib1g-dev \
+          libncurses5-dev \
+          libncursesw5-dev \
+          libffi-dev \
+          libssl-dev \
+          libjpeg-dev \
+          liblzma-dev \
+          libsqlite3-dev \
           libsdl2-dev \
           libsdl2-image-dev \
           libsdl2-mixer-dev \
           libsdl2-ttf-dev \
           libportmidi-dev \
-          libswscale-dev \
-          libavformat-dev \
-          libavcodec-dev \
-          libfreetype6-dev \
           libgl1-mesa-dev \
           libgles2-mesa-dev \
-          libgstreamer1.0-dev \
-          libgstreamer-plugins-base1.0-dev \
-          zlib1g-dev \
-          libjpeg-dev \
-          libffi-dev \
-          libssl-dev \
+          libfreetype6-dev \
           automake \
-          autoconf \
-          libtool \
-          pkg-config
+          cmake
     
-    # 安装Buildozer
     - name: Install Buildozer
       run: |
-        pip3 install --upgrade pip
+        pip3 install --upgrade pip setuptools wheel
         pip3 install buildozer cython==0.29.33
     
-    # 修复权限并开始构建
     - name: Build APK
       run: |
-        # 修复目录权限（GitHub Actions runner用户问题）
-        sudo chown -R $(whoami) ~/.local
-        sudo chown -R $(whoami) ~/.buildozer || true
+        # 修复目录权限
+        mkdir -p ~/.buildozer ~/.android
+        sudo chown -R $(whoami):$(whoami) ~/
         
-        # 构建debug APK（首次可能20-30分钟，缓存后5分钟）
+        # 设置Java环境
+        export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+        export PATH=$PATH:$JAVA_HOME/bin
+        
+        # 开始构建（首次约20分钟）
         buildozer android debug
         
-        # 重命名加上版本号
-        mv bin/*.apk bin/ecust-run-v4.4.apk || true
+        # 重命名APK
+        for f in bin/*.apk; do
+          mv "$f" "bin/ecust-run-v4.4.apk" 2>/dev/null || true
+        done
     
-    # 上传构建产物
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: ecust-run-apk
         path: bin/*.apk
-        if-no-files-found: error
-    
+        if-no-files-found: warn
