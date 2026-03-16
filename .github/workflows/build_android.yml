@@ -5,54 +5,52 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: actions/setup-python@v5
-        with:
-          python-version: 3.8
       
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            python3-pip build-essential git zip unzip openjdk-17-jdk \
-            libffi-dev libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev \
-            libsdl2-ttf-dev libportmidi-dev libfreetype6-dev \
-            autoconf libtool pkg-config zlib1g-dev cmake automake
+          sudo apt-get install -y python3-pip build-essential git zip unzip openjdk-17-jdk
           pip3 install buildozer cython==0.29.33
+
+      - name: Pre-install SDK and accept licenses
+        run: |
+          # 关键：手动创建 SDK 目录并安装 build-tools，同时接受 licenses
+          mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          cd ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          
+          # 下载命令行工具
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip -q *.zip && mv cmdline-tools latest && rm *.zip
+          
+          # 关键：强制接受所有 licenses（这是 buildozer 在 CI 中失败的原因）
+          export SDKMANAGER="~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager"
+          yes | $SDKMANAGER --licenses
+          
+          # 手动安装 build-tools（包含 aidl）
+          $SDKMANAGER "build-tools;33.0.0" "platforms;android-33"
+          
+          # 验证 aidl 存在
+          ls -la ~/.buildozer/android/platform/android-sdk/build-tools/33.0.0/aidl
 
       - name: Build APK
         run: |
-          # 关键：清理之前损坏的SDK，防止冲突
-          rm -rf ~/.buildozer/android/platform/android-sdk/build-tools || true
+          # 清理可能的环境变量冲突
+          unset ANDROID_SDK_ROOT ANDROID_HOME ANDROID_NDK_ROOT
           
-          # 关键：unset所有Android环境变量，让Buildozer自己管理SDK路径
-          unset ANDROID_SDK_ROOT
-          unset ANDROID_HOME
-          unset ANDROID_NDK_ROOT
-          unset ANDROID_SDK
+          # 设置环境变量让 buildozer 使用我们预装的 SDK
+          export ANDROIDSDK=~/.buildozer/android/platform/android-sdk
+          export ANDROIDNDK=~/.buildozer/android/platform/android-ndk-r25b
           
-          # 正确命令：不要加--sdk-path参数！
-          buildozer -v android debug 2>&1 | tee build.log
-
-      - name: Upload logs on failure
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: build-logs
-          path: build.log
+          # 关键：设置这个环境变量强制接受 license（某些 buildozer 版本需要）
+          export APP_ANDROID_ACCEPT_SDK_LICENSE=1
+          
+          buildozer -v android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ecust-run-apk
           path: bin/*.apk
-
-
-
-          
-
-
-          
