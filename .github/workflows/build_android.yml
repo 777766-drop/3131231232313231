@@ -1,74 +1,23 @@
 name: Build Android APK
 
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-    
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
-    # 关键修复：创建 Buildozer 期望的 tools 目录结构
-    - name: Setup Android SDK for Buildozer
-      run: |
-        ANDROID_SDK=$HOME/.buildozer/android/platform/android-sdk
-        
-        # 清理之前损坏的尝试
-        rm -rf $ANDROID_SDK || true
-        mkdir -p $ANDROID_SDK
-        
-        # 下载并安装到 Buildozer 期望的 tools 目录（而非 cmdline-tools）
-        cd $ANDROID_SDK
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-        unzip -q commandlinetools-linux-*.zip
-        
-        # 关键：重命名为 tools（Buildozer 硬编码查找 tools/bin/sdkmanager）
-        mv cmdline-tools tools
-        rm -f *.zip
-        
-        # 创建 licenses 目录避免交互式提示
-        mkdir -p $ANDROID_SDK/licenses
-        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_SDK/licenses/android-sdk-license
-        echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_SDK/licenses/android-sdk-preview-license
-        
-        # 验证 sdkmanager 存在
-        ls -la $ANDROID_SDK/tools/bin/sdkmanager || (echo "sdkmanager not found!" && exit 1)
-        
-        echo "ANDROID_SDK=$ANDROID_SDK" >> $GITHUB_ENV
-
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          python3-pip python3-dev build-essential git zip unzip \
-          openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev \
-          libffi-dev libssl-dev libjpeg-dev libsdl2-dev \
-          libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-          libportmidi-dev libgl1-mesa-dev automake cmake
-        sudo apt-get install -f -y
-
-    - name: Install Buildozer
-      run: pip3 install buildozer cython==0.29.33
-
-    - name: Build APK
-      run: |
-        # 确保 Buildozer 使用我们预装的 SDK，不自己下载
-        export ANDROID_SDK=$HOME/.buildozer/android/platform/android-sdk
-        export ANDROID_HOME=$ANDROID_SDK
-        
-        sudo chown -R $(whoami):$(whoami) ~/
-        
-        buildozer android debug
-        
-        mv bin/*.apk bin/ecust-run-v4.4.apk 2>/dev/null || true
-
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: ecust-run-apk
-        path: bin/*.apk
-        if-no-files-found: error
+      - uses: actions/checkout@v4
+      
+      # 使用社区维护的 Buildozer Action（预配置好环境）
+      - uses: ArtemSBulgakov/buildozer-action@v1
+        with:
+          buildozer_version: stable
+          repository_root: .
+          workdir: .
+      
+      # 下载产物
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ecust-run-apk
+          path: bin/*.apk
