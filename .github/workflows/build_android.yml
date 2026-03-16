@@ -19,7 +19,11 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update
-          sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          sudo apt install -y \
+            git zip unzip openjdk-17-jdk python3-pip \
+            autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev \
+            libtinfo-dev cmake libffi-dev libssl-dev
 
       - name: Install Python dependencies
         run: |
@@ -28,10 +32,12 @@ jobs:
 
       - name: Build with Buildozer
         run: |
+          # 允许 buildozer 使用非组织的域名（避免交互式提示）
           export BUILDOZER_ALLOW_ORG_TEST_DOMAIN=1
+          # 如果遇到 p4a 版本问题，建议修改 buildozer.spec 中的 p4a.branch
           buildozer -v android debug
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-apk
