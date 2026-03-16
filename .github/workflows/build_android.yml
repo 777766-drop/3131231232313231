@@ -78,3 +78,4 @@ jobs:
           name: ecust-run-apk
           path: bin/*.apk
           if-no-files-found: warn
+          
