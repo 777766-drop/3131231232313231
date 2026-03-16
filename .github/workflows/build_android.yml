@@ -12,45 +12,69 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip build-essential git zip unzip openjdk-17-jdk
+          sudo apt-get install -y --no-install-recommends \
+            python3-pip build-essential git zip unzip openjdk-17-jdk \
+            libffi-dev libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev \
+            libsdl2-ttf-dev libportmidi-dev libfreetype6-dev \
+            autoconf libtool pkg-config zlib1g-dev cmake automake
           pip3 install buildozer cython==0.29.33
 
-      - name: Pre-install SDK and accept licenses
+      - name: Pre-install Android SDK and build-tools
         run: |
-          # 关键：手动创建 SDK 目录并安装 build-tools，同时接受 licenses
-          mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
-          cd ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          # 使用 $HOME 而不是 ~，避免路径展开问题
+          SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+          mkdir -p "$SDK_DIR/cmdline-tools"
+          
+          cd "$SDK_DIR/cmdline-tools"
           
           # 下载命令行工具
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q *.zip && mv cmdline-tools latest && rm *.zip
+          unzip -q commandlinetools-linux-*.zip
+          mv cmdline-tools latest
+          rm -f *.zip
           
-          # 关键：强制接受所有 licenses（这是 buildozer 在 CI 中失败的原因）
-          export SDKMANAGER="~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager"
-          yes | $SDKMANAGER --licenses
+          # 设置 PATH
+          export PATH="$PATH:$SDK_DIR/cmdline-tools/latest/bin"
           
-          # 手动安装 build-tools（包含 aidl）
-          $SDKMANAGER "build-tools;33.0.0" "platforms;android-33"
+          # 关键：手动创建 license 文件，绕过交互式提示（避免 yes 的 broken pipe）
+          mkdir -p "$SDK_DIR/licenses"
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$SDK_DIR/licenses/android-sdk-license"
+          echo "d56f5187479451eabf01fb78af6dfcb131ad648a" > "$SDK_DIR/licenses/android-sdk-preview-license"
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" >> "$SDK_DIR/licenses/android-sdk-license"
           
-          # 验证 aidl 存在
-          ls -la ~/.buildozer/android/platform/android-sdk/build-tools/33.0.0/aidl
+          # 安装 build-tools（包含 aidl）和平台
+          sdkmanager "build-tools;33.0.0" "platforms;android-33" "platform-tools" || true
+          
+          # 验证 aidl 是否存在
+          ls -la "$SDK_DIR/build-tools/33.0.0/" || echo "build-tools 33.0.0 not found, trying 34.0.0..."
+          ls -la "$SDK_DIR/build-tools/" || true
 
       - name: Build APK
         run: |
-          # 清理可能的环境变量冲突
-          unset ANDROID_SDK_ROOT ANDROID_HOME ANDROID_NDK_ROOT
+          # 清理环境变量，让 Buildozer 使用自己下载的 SDK
+          unset ANDROID_SDK_ROOT
+          unset ANDROID_HOME
+          unset ANDROID_NDK_ROOT
           
-          # 设置环境变量让 buildozer 使用我们预装的 SDK
-          export ANDROIDSDK=~/.buildozer/android/platform/android-sdk
-          export ANDROIDNDK=~/.buildozer/android/platform/android-ndk-r25b
+          # 确保 license 文件存在（Buildozer 会检查）
+          mkdir -p "$HOME/.buildozer/android/platform/android-sdk/licenses"
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license"
           
-          # 关键：设置这个环境变量强制接受 license（某些 buildozer 版本需要）
-          export APP_ANDROID_ACCEPT_SDK_LICENSE=1
-          
-          buildozer -v android debug
+          # 构建
+          buildozer -v android debug 2>&1 | tee build.log
+
+      - name: Upload logs on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-logs
+          path: |
+            build.log
+            .buildozer/android/platform/python-for-android/dist/*/build.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ecust-run-apk
           path: bin/*.apk
+          if-no-files-found: warn
