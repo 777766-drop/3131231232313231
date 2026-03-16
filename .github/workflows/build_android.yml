@@ -1,67 +1,51 @@
-name: Build Kivy APK
+name: Build Android APK
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.8'
-
-      - name: Install system dependencies
+          python-version: 3.8
+      
+      - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt install -y \
-            git zip unzip openjdk-17-jdk python3-pip \
-            autoconf libtool pkg-config zlib1g-dev \
-            libncurses5-dev libncursesw5-dev \
-            libtinfo-dev cmake libffi-dev libssl-dev wget
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-pip build-essential git zip unzip openjdk-17-jdk \
+            libffi-dev libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev \
+            libsdl2-ttf-dev libportmidi-dev libfreetype6-dev \
+            autoconf libtool pkg-config zlib1g-dev cmake automake
+          pip3 install buildozer cython==0.29.33
 
-      - name: Install Android SDK
+      - name: Build APK
         run: |
-          # 创建SDK目录
-          mkdir -p $HOME/android-sdk
-          cd $HOME/android-sdk
-          # 下载命令行工具
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q commandlinetools-linux-9477386_latest.zip
-          # 整理目录结构
-          mkdir -p cmdline-tools/latest
-          mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
-          # 设置环境变量
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+          # 清理之前可能损坏的build-tools
+          rm -rf .buildozer/android/platform/android-sdk/build-tools || true
+          
+          # 关键：unset系统环境变量，让Buildozer自己管理SDK路径
+          unset ANDROID_SDK_ROOT
+          unset ANDROID_HOME
+          unset ANDROID_NDK_ROOT
+          unset ANDROID_SDK
+          
+          # 构建（首次会自动下载SDK/NDK/build-tools）
+          buildozer android debug 2>&1 | tee build.log
 
-      - name: Install SDK components and accept licenses
-        run: |
-          # 自动接受所有许可证
-          yes | sdkmanager --licenses
-          # 安装必要的组件（根据你的 buildozer.spec 调整版本）
-          sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0"
+      - name: Upload logs on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-logs
+          path: build.log
 
-      - name: Install Python dependencies
-        run: |
-          pip install --upgrade pip
-          pip install Cython buildozer
-
-      - name: Build with Buildozer
-        run: |
-          export BUILDOZER_ALLOW_ORG_TEST_DOMAIN=1
-          # 明确指定SDK路径，防止buildozer重新下载
-          buildozer --sdk-path $ANDROID_HOME -v android debug
-
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-apk
-          path: ./bin/*.apk
+          name: ecust-run-apk
+          path: bin/*.apk
