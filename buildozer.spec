@@ -1,104 +1,64 @@
 [app]
 
-# 应用标题和包名
+# 应用基本信息
 title = ECUST Run
 package.name = ecustrun
 package.domain = org.ecust
 
-# 源文件目录（包含你的 main.py）
+# 源文件
 source.dir = .
-
-# 包含的文件扩展名
-source.include_exts = py,png,jpg,kv,atlas,ttf,txt,crt,pem
+source.include_exts = py,png,jpg,kv,atlas,ttf,txt,crt,pem,json
 
 # 版本号
 version = 4.4
 
-# 依赖项（关键：包含SSL证书和加密库）
-requirements = python3==3.10.12,hostpython3==3.10.12,requests,pycryptodome,certifi,charset-normalizer,idna,urllib3,Pygments
+# 依赖项（关键：用pycryptodomex代替pycryptodome，避免Android编译错误）
+requirements = python3==3.10.12,hostpython3==3.10.12,requests,pycryptodomex,certifi,charset-normalizer,idna,urllib3
 
-# 防止Android 10+的分区存储限制
-android.private_storage = True
-android.permission_write_external_storage = True
-
-# 图标（如果有的话）
-# icon.filename = %(source.dir)s/icon.png
-
-# 是否全屏（False显示状态栏）
+# 屏幕设置
+orientation = portrait
 fullscreen = 0
 
-# 屏幕方向（竖屏）
-orientation = portrait
-
-# 服务配置（保持后台运行，可选）
-# services = CampusRun: campus_service.py
-
-[buildozer]
-
-# 构建目录（避免中文路径）
-build_dir = ./.buildozer
-
-# 打包模式（release/debug）
-build_mode = debug
-
-# Android 特定配置
-log_level = 2
-warn_on_root = 1
+# 防止服务冲突
+services = 
 
 [app:android]
 
-# Android API 和 NDK 版本（关键：25b NDK 兼容性最好）
-android.api = 31
+# Android API 和 NDK 配置
+android.api = 33
 android.minapi = 21
-android.build_tools_version = 34.0.0
 android.sdk = 33
 android.ndk = 25b
-android.ndk_path = 
 
-# 目标架构（arm64-v8a是主流，armeabi-v7a兼容旧设备）
+# 关键修复：允许Buildozer自动下载并安装缺失的build-tools（包含aidl）
+android.skip_update = False
+android.accept_sdk_license = True
+
+# 架构
 android.archs = arm64-v8a, armeabi-v7a
 
-# 关键权限（网络、存储、防止休眠）
+# 必需权限
 android.permissions = INTERNET,ACCESS_NETWORK_STATE,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,WAKE_LOCK,FOREGROUND_SERVICE
 
-# 防止Android 11+的权限拒绝导致的闪退
-android.storage_permissions = True
-
-# 禁用API检查（防止某些Python库调用反射时崩溃）
+# 允许备份
 android.allow_backup = False
 
-# SSL证书处理（防止"SSL: CERTIFICATE_VERIFY_FAILED"闪退）
-android.add_compile_options = --release
-android.add_gradle_repositories = mavenCentral(),google()
-android.gradle_dependencies = com.android.support:support-compat:28.0.0,org.conscrypt:conscrypt-android:2.5.2
-
-# 如果需要在Android 10+访问/sdcard/Download
+# 禁用某些检查以避免错误
 android.manifest.application_attributes = android:requestLegacyExternalStorage="true"
 
-# 避免某些x86设备上的崩溃
-android.skip_update = False
+[buildozer]
 
-# 启动模式（防止重复实例）
-android.manifest.launch_mode = singleTask
+# 关键：详细日志才能看到真实的许可证/下载错误
+log_level = 2
 
-[app:android:entry]
+# 禁用root警告（GitHub Actions是root用户）
+warn_on_root = 0
 
-# 主入口（确保你的Python文件叫main.py，或者修改这里）
-android.entrypoint = org.kivy.android.PythonActivity
-android.python_name = ecustrun
+# 构建目录
+build_dir = ./.buildozer
 
-[app:android:meta_data]
+# 二进制输出目录
+bin_dir = ./bin
 
-# 支持刘海屏/全面屏
-android.meta_data = android.max_aspect=2.4
-
-[app:android:build]
-
-# 防止Java堆内存不足导致的构建失败
-android.gradle_options = org.gradle.jvmargs=-Xmx4096M
-
-# 构建工具版本
-android.build_tools_version = 33.0.0
-
-
-p4a.branch = release-2022.12.20
+# 指定spec文件路径
+source.include_exts = py,png,jpg,kv,atlas,ttf,txt,crt,pem,json,xml,mo,vs,fs,glsl
