@@ -1,4 +1,4 @@
-name: Build with Buildozer
+name: Build Kivy APK
 
 on:
   push:
@@ -7,7 +7,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,16 +25,20 @@ jobs:
             libncurses5-dev libncursesw5-dev \
             libtinfo-dev cmake libffi-dev libssl-dev
 
-      # 使用专门为 Buildozer 设计的 Action
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install Cython buildozer
+
       - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          workdir: .
-          buildozer_version: stable
+        run: |
+          # 允许 buildozer 使用非组织的域名（避免交互式提示）
+          export BUILDOZER_ALLOW_ORG_TEST_DOMAIN=1
+          # 自动接受 SDK 许可证
+          buildozer --accept-sdk-licenses -v android debug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-apk
-          path: ${{ steps.buildozer.outputs.filename }}
+          path: ./bin/*.apk
