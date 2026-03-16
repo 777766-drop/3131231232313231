@@ -99,3 +99,6 @@ android.gradle_options = org.gradle.jvmargs=-Xmx4096M
 
 # 构建工具版本
 android.build_tools_version = 33.0.0
+
+
+p4a.branch = release-2022.12.20
