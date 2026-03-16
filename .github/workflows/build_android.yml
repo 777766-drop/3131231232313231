@@ -34,7 +34,7 @@ jobs:
         run: |
           # 允许 buildozer 使用非组织的域名（避免交互式提示）
           export BUILDOZER_ALLOW_ORG_TEST_DOMAIN=1
-          # --accept-sdk-licenses 自动接受所有 Android SDK 许可证
+          # 自动接受所有 Android SDK 许可证，并开始编译
           buildozer --accept-sdk-licenses -v android debug
 
       - name: Upload APK artifact
