@@ -1,24 +1,17 @@
 name: Build Android APK
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      # 使用社区维护的 Buildozer Action（预配置好环境）
       - uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
         with:
           buildozer_version: stable
-          repository_root: .
-          workdir: .
-      
-      # 下载产物
       - uses: actions/upload-artifact@v4
         with:
           name: ecust-run-apk
           path: bin/*.apk
-
