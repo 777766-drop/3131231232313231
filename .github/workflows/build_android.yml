@@ -1,17 +1,41 @@
+# .github/workflows/build.yml
 name: Build Android APK
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          buildozer_version: stable
-      - uses: actions/upload-artifact@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip python3-dev build-essential git zip unzip openjdk-17-jdk
+          sudo apt-get install -y libncurses5-dev libncursesw5-dev libffi-dev libssl-dev liblzma-dev
+          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+          sudo apt-get install -y libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev libfreetype6-dev
+          pip3 install buildozer cython==0.29.33
+
+      - name: Build APK
+        run: |
+          # 清理可能的环境变量冲突
+          unset ANDROID_SDK_ROOT ANDROID_HOME ANDROID_NDK_ROOT
+          export BUILDOZER_WARN_ON_ROOT=0
+          
+          # 运行构建（首次会自动下载SDK/NDK，约20分钟）
+          buildozer android debug 2>&1 | tee build.log || {
+            echo "构建失败，最后50行日志："
+            tail -n 50 build.log
+            exit 1
+          }
+          
+          ls -la bin/
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: ecust-run-apk
           path: bin/*.apk
