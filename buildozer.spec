@@ -50,6 +50,7 @@ warn_on_root = 1
 # Android API 和 NDK 版本（关键：25b NDK 兼容性最好）
 android.api = 31
 android.minapi = 21
+android.build_tools_version = 34.0.0
 android.sdk = 33
 android.ndk = 25b
 android.ndk_path = 
