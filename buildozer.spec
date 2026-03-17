@@ -6,23 +6,23 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,txt,json
 version = 4.5
 
-# 依赖项（最关键）
-requirements = python3,hostpython3,kivy,requests,pycryptodomex,certifi,charset-normalizer,idna,urllib3
+# 必须包含这些库，否则华为系统会闪退
+requirements = python3,hostpython3,kivy,requests,pycryptodomex,certifi,urllib3,openssl
 
 orientation = portrait
 fullscreen = 0
 
 [app:android]
-# 安卓 API 配置
+# 针对鸿蒙4优化的API
 android.api = 31
 android.minapi = 21
 android.ndk = 23b
 android.accept_sdk_license = True
 
-# 权限：必须开启网络和存储
-android.permissions = INTERNET,ACCESS_NETWORK_STATE,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
+# 核心权限
+android.permissions = INTERNET,ACCESS_NETWORK_STATE,WAKE_LOCK
 
-# 架构：目前只编译 arm64 效率最高且最稳
+# 麒麟 9010 架构支持
 android.archs = arm64-v8a
 
 [buildozer]
