@@ -1,37 +1,40 @@
-name: Build Android APK
+[app]
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+title = ECUST Run
+package.name = ecustrun
+package.domain = org.ecust
 
-jobs:
-  build:
-    runs-on: ubuntu-22.04
+source.dir = .
+source.include_exts = py,png,jpg,kv,atlas,ttf,txt,json
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+version = 4.4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+requirements = python3==3.10.12,hostpython3==3.10.12,requests,pycryptodomex,certifi,charset-normalizer,idna,urllib3
 
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-          # 关键：锁定 Cython 版本并安装 buildozer
-          pip install "Cython<3.0" buildozer virtualenv
+orientation = portrait
+fullscreen = 0
 
-      - name: Build with Buildozer
-        run: |
-          # 这里的 yes 会自动同意 SDK 协议
-          yes | buildozer android debug
+[app:android]
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: my-android-app
-          path: bin/*.apk
+android.api = 33
+android.minapi = 21
+android.sdk = 33
+android.ndk = 25b
+
+# 关键：必须显式设置路径，让 Buildozer 找到预装的 SDK
+android.sdk_path = ~/.buildozer/android/platform/android-sdk
+android.ndk_path = ~/.buildozer/android/platform/android-ndk-r25b
+
+# 关键：允许自动更新和接受 license
+android.skip_update = False
+android.accept_sdk_license = True
+
+android.archs = arm64-v8a, armeabi-v7a
+android.permissions = INTERNET,ACCESS_NETWORK_STATE,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,WAKE_LOCK
+
+[buildozer]
+
+log_level = 2
+warn_on_root = 0
+build_dir = ./.buildozer
+bin_dir = ./bin
