@@ -1,40 +1,32 @@
 [app]
-
 title = ECUST Run
 package.name = ecustrun
 package.domain = org.ecust
-
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,txt,json
-
 version = 4.4
 
-requirements = python3==3.10.12,hostpython3==3.10.12,requests,pycryptodomex,certifi,charset-normalizer,idna,urllib3
+# 删掉了具体的 python 版本号，由 Buildozer 自动选择最匹配的
+# 增加了六个基础依赖，确保编译环境更稳
+requirements = python3,hostpython3,requests,pycryptodomex,certifi,charset-normalizer,idna,urllib3
 
 orientation = portrait
 fullscreen = 0
 
-[app:android]
-
+# (Android 特定配置)
 android.api = 33
 android.minapi = 21
-android.sdk = 33
+# 删掉了手动指定的 sdk/ndk 路径，让系统自动下载到默认位置
 android.ndk = 25b
-
-# 关键：必须显式设置路径，让 Buildozer 找到预装的 SDK
-android.sdk_path = ~/.buildozer/android/platform/android-sdk
-android.ndk_path = ~/.buildozer/android/platform/android-ndk-r25b
-
-# 关键：允许自动更新和接受 license
 android.skip_update = False
 android.accept_sdk_license = True
 
-android.archs = arm64-v8a, armeabi-v7a
+# 权限设置
 android.permissions = INTERNET,ACCESS_NETWORK_STATE,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,WAKE_LOCK
 
-[buildozer]
+# 先只保留 arm64-v8a 提高打包成功率，如果之后需要老手机支持再加 armeabi-v7a
+android.archs = arm64-v8a
 
+[buildozer]
 log_level = 2
-warn_on_root = 0
-build_dir = ./.buildozer
-bin_dir = ./bin
+warn_on_root = 1
