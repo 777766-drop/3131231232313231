@@ -1,10 +1,8 @@
 name: Build Android APK
 
-# 触发条件：当推送到 main 分支，或者在 Actions 页面手动触发时运行
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -12,43 +10,28 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: 检出代码
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 设置 Python 环境
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10' # 可根据你的实际开发版本调整
+          python-version: '3.10'
 
-      - name: 缓存 Buildozer 全局目录 (加速后续构建)
-        uses: actions/cache@v4
-        with:
-          path: ~/.buildozer
-          key: ${{ runner.os }}-buildozer-global-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            ${{ runner.os }}-buildozer-global-
-
-      - name: 缓存当前项目的 .buildozer 目录
-        uses: actions/cache@v4
-        with:
-          path: .buildozer
-          key: ${{ runner.os }}-buildozer-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildozer-
-
-      - name: 安装系统依赖 (Ubuntu 构建所需)
+      - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-          pip install --upgrade buildozer cython virtualenv
+          # 关键：锁定 Cython 版本并安装 buildozer
+          pip install "Cython<3.0" buildozer virtualenv
 
-      - name: 使用 Buildozer 打包 APK
+      - name: Build with Buildozer
         run: |
-          # yes | 用于自动回复 buildozer 过程中的 [y/n] 提示
+          # 这里的 yes 会自动同意 SDK 协议
           yes | buildozer android debug
 
-      - name: 上传 APK 文件到 GitHub Artifacts
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
+          name: my-android-app
           path: bin/*.apk
