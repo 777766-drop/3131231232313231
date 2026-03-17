@@ -10,34 +10,34 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout code
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17 (Gradle 必须)
+      - name: 设置 Java 17 (打包安卓必需)
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Python
+      - name: 设置 Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: 安装打包依赖工具
         run: |
           sudo apt update
           sudo apt install -y git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          # 锁定 Cython 版本，防止 Kivy 编译崩溃
           pip install "Cython<3.0" buildozer virtualenv
 
-      - name: Build with Buildozer
+      - name: 使用 Buildozer 开始打包
         run: |
-          # 运行前清理旧的缓存，防止残留报错
-          buildozer android clean
+          # 直接运行 debug，自动同意 SDK 协议
           yes | buildozer android debug
 
-      - name: Upload APK
+      - name: 上传生成的 APK
         uses: actions/upload-artifact@v4
         with:
-          name: ecust-run-apk
+          name: ecust-run-app
           path: bin/*.apk
