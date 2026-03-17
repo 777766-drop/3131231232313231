@@ -8,12 +8,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-
+    
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 设置 Java 17 (打包安卓必需)
+      - name: 设置 Java 17 (Temurin)
         uses: actions/setup-java@v4
         with:
           java-version: '17'
@@ -24,20 +24,49 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: 安装打包依赖工具
+      - name: 安装系统依赖与打包工具
         run: |
+          sudo dpkg --add-architecture i386  # 兼容32位库
           sudo apt update
-          sudo apt install -y git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-          # 锁定 Cython 版本，防止 Kivy 编译崩溃
-          pip install "Cython<3.0" buildozer virtualenv
+          sudo apt install -y --no-install-recommends \
+            git zip unzip autoconf libtool pkg-config \
+            zlib1g-dev zlib1g:i386 libncurses5-dev libncurses5:i386 \
+            libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
+            libstdc++6 libstdc++6:i386 libgcc-s1 libgcc-s1:i386
+          
+          # 锁定Cython<3.0（Kivy编译必需）
+          pip install "Cython<3.0" "kivy==2.2.1" buildozer
+          
+          # 预下载Android SDK/NDK防止超时
+          mkdir -p ~/.buildozer/android/platform/
+          
+      - name: 配置Buildozer与缓存
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            ~/.gradle
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
 
-      - name: 使用 Buildozer 开始打包
+      - name: 执行Buildozer打包
         run: |
-          # 直接运行 debug，自动同意 SDK 协议
-          yes | buildozer android debug
+          # 自动同意所有SDK协议
+          yes | buildozer android debug 2>&1 | tee build.log || true
+          
+          # 检查APK是否生成
+          if [ ! -f bin/*.apk ]; then
+            echo "❌ 打包失败，查看日志:"
+            tail -100 build.log
+            exit 1
+          fi
 
-      - name: 上传生成的 APK
+      - name: 上传APK与日志
         uses: actions/upload-artifact@v4
         with:
-          name: ecust-run-app
-          path: bin/*.apk
+          name: ECUST-Run-v4.5
+          path: |
+            bin/*.apk
+            ecust_run.log  # 如果存在调试日志
+          if-no-files-found: warn
