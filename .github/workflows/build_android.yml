@@ -5,11 +5,11 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -19,48 +19,57 @@ jobs:
             autoconf libtool pkg-config zlib1g-dev cmake automake
           pip3 install buildozer cython==0.29.33
 
-      - name: Pre-install Android SDK and build-tools
+      - name: Setup Android SDK for Buildozer
         run: |
-          # 使用 $HOME 而不是 ~，避免路径展开问题
+          # 设置 SDK 目录
           SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
-          mkdir -p "$SDK_DIR/cmdline-tools"
+          mkdir -p "$SDK_DIR"
           
-          cd "$SDK_DIR/cmdline-tools"
-          
-          # 下载命令行工具
+          # 下载并安装命令行工具到 Buildozer 期望的 tools 目录（关键修复）
+          cd "$SDK_DIR"
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
           unzip -q commandlinetools-linux-*.zip
-          mv cmdline-tools latest
+          
+          # 关键：Buildozer 硬编码查找 tools/bin/sdkmanager，所以直接把 cmdline-tools 重命名为 tools
+          mv cmdline-tools tools
           rm -f *.zip
           
-          # 设置 PATH
-          export PATH="$PATH:$SDK_DIR/cmdline-tools/latest/bin"
+          # 在 tools 内创建 latest 子目录结构（sdkmanager 期望的）
+          mkdir -p tools/latest
+          mv tools/bin tools/lib tools/NOTICE.txt tools/source.properties tools/latest/ 2>/dev/null || true
           
-          # 关键：手动创建 license 文件，绕过交互式提示（避免 yes 的 broken pipe）
+          # 同时保留 tools/bin 直接路径（双重保险）
+          ln -sf tools/latest/bin tools/bin 2>/dev/null || true
+          
+          # 设置 PATH
+          export PATH="$PATH:$SDK_DIR/tools/latest/bin:$SDK_DIR/tools/bin"
+          
+          # 创建 license 文件（必须）
           mkdir -p "$SDK_DIR/licenses"
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$SDK_DIR/licenses/android-sdk-license"
           echo "d56f5187479451eabf01fb78af6dfcb131ad648a" > "$SDK_DIR/licenses/android-sdk-preview-license"
-          echo "84831b9409646a918e30573bab4c9c91346d8abd" >> "$SDK_DIR/licenses/android-sdk-license"
           
-          # 安装 build-tools（包含 aidl）和平台
-          sdkmanager "build-tools;33.0.0" "platforms;android-33" "platform-tools" || true
+          # 使用 sdkmanager 安装 build-tools（包含 aidl）
+          yes | sdkmanager --licenses || true
+          sdkmanager "build-tools;33.0.0" "platforms;android-33" "platform-tools"
           
-          # 验证 aidl 是否存在
-          ls -la "$SDK_DIR/build-tools/33.0.0/" || echo "build-tools 33.0.0 not found, trying 34.0.0..."
-          ls -la "$SDK_DIR/build-tools/" || true
+          # 验证
+          echo "检查 sdkmanager 位置："
+          ls -la "$SDK_DIR/tools/bin/sdkmanager" || ls -la "$SDK_DIR/tools/latest/bin/sdkmanager"
+          echo "检查 build-tools："
+          ls -la "$SDK_DIR/build-tools/33.0.0/" | head -10
 
       - name: Build APK
         run: |
-          # 清理环境变量，让 Buildozer 使用自己下载的 SDK
+          # 清理环境变量冲突
           unset ANDROID_SDK_ROOT
           unset ANDROID_HOME
           unset ANDROID_NDK_ROOT
           
-          # 确保 license 文件存在（Buildozer 会检查）
-          mkdir -p "$HOME/.buildozer/android/platform/android-sdk/licenses"
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license"
+          # 确保 Buildozer 能找到 sdkmanager
+          export PATH="$PATH:$HOME/.buildozer/android/platform/android-sdk/tools/bin"
           
-          # 构建
+          # 构建（详细日志）
           buildozer -v android debug 2>&1 | tee build.log
 
       - name: Upload logs on failure
@@ -78,4 +87,3 @@ jobs:
           name: ecust-run-apk
           path: bin/*.apk
           if-no-files-found: warn
-          
