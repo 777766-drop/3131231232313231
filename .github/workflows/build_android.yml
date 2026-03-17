@@ -1,89 +1,54 @@
 name: Build Android APK
 
+# 触发条件：当推送到 main 分支，或者在 Actions 页面手动触发时运行
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            python3-pip build-essential git zip unzip openjdk-17-jdk \
-            libffi-dev libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev \
-            libsdl2-ttf-dev libportmidi-dev libfreetype6-dev \
-            autoconf libtool pkg-config zlib1g-dev cmake automake
-          pip3 install buildozer cython==0.29.33
+      - name: 检出代码
+        uses: actions/checkout@v4
 
-      - name: Setup Android SDK for Buildozer
-        run: |
-          # 设置 SDK 目录
-          SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
-          mkdir -p "$SDK_DIR"
-          
-          # 下载并安装命令行工具到 Buildozer 期望的 tools 目录（关键修复）
-          cd "$SDK_DIR"
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q commandlinetools-linux-*.zip
-          
-          # 关键：Buildozer 硬编码查找 tools/bin/sdkmanager，所以直接把 cmdline-tools 重命名为 tools
-          mv cmdline-tools tools
-          rm -f *.zip
-          
-          # 在 tools 内创建 latest 子目录结构（sdkmanager 期望的）
-          mkdir -p tools/latest
-          mv tools/bin tools/lib tools/NOTICE.txt tools/source.properties tools/latest/ 2>/dev/null || true
-          
-          # 同时保留 tools/bin 直接路径（双重保险）
-          ln -sf tools/latest/bin tools/bin 2>/dev/null || true
-          
-          # 设置 PATH
-          export PATH="$PATH:$SDK_DIR/tools/latest/bin:$SDK_DIR/tools/bin"
-          
-          # 创建 license 文件（必须）
-          mkdir -p "$SDK_DIR/licenses"
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$SDK_DIR/licenses/android-sdk-license"
-          echo "d56f5187479451eabf01fb78af6dfcb131ad648a" > "$SDK_DIR/licenses/android-sdk-preview-license"
-          
-          # 使用 sdkmanager 安装 build-tools（包含 aidl）
-          yes | sdkmanager --licenses || true
-          sdkmanager "build-tools;33.0.0" "platforms;android-33" "platform-tools"
-          
-          # 验证
-          echo "检查 sdkmanager 位置："
-          ls -la "$SDK_DIR/tools/bin/sdkmanager" || ls -la "$SDK_DIR/tools/latest/bin/sdkmanager"
-          echo "检查 build-tools："
-          ls -la "$SDK_DIR/build-tools/33.0.0/" | head -10
-
-      - name: Build APK
-        run: |
-          # 清理环境变量冲突
-          unset ANDROID_SDK_ROOT
-          unset ANDROID_HOME
-          unset ANDROID_NDK_ROOT
-          
-          # 确保 Buildozer 能找到 sdkmanager
-          export PATH="$PATH:$HOME/.buildozer/android/platform/android-sdk/tools/bin"
-          
-          # 构建（详细日志）
-          buildozer -v android debug 2>&1 | tee build.log
-
-      - name: Upload logs on failure
-        uses: actions/upload-artifact@v4
-        if: failure()
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
         with:
-          name: build-logs
-          path: |
-            build.log
-            .buildozer/android/platform/python-for-android/dist/*/build.log
+          python-version: '3.10' # 可根据你的实际开发版本调整
 
-      - name: Upload APK
+      - name: 缓存 Buildozer 全局目录 (加速后续构建)
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: ${{ runner.os }}-buildozer-global-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-global-
+
+      - name: 缓存当前项目的 .buildozer 目录
+        uses: actions/cache@v4
+        with:
+          path: .buildozer
+          key: ${{ runner.os }}-buildozer-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
+
+      - name: 安装系统依赖 (Ubuntu 构建所需)
+        run: |
+          sudo apt update
+          sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          pip install --upgrade buildozer cython virtualenv
+
+      - name: 使用 Buildozer 打包 APK
+        run: |
+          # yes | 用于自动回复 buildozer 过程中的 [y/n] 提示
+          yes | buildozer android debug
+
+      - name: 上传 APK 文件到 GitHub Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ecust-run-apk
+          name: android-apk
           path: bin/*.apk
-          if-no-files-found: warn
